@@ -1,11 +1,38 @@
+# الملف: bot.py (تم التعديل عليه)
+
 import telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+import os # لإدارة بيئة التشغيل
 
 # ************************************************
-# 🔴 معلومة مهمة: غير هذا الرمز (TOKEN) بالرمز مالتك اللي اخذته من BotFather
+# 🔴 التوكن اللي خليته هو:
 # ************************************************
-TOKEN = "8215940523:AAGrHjks3aDn0KOjesuhuOxa5GDB6wBR0Vg" 
+TOKEN = "6725354032:AAoHfE3AOkdeJXasufshXhxt600b8sw0g" 
+
+
+# دالة (Function) مهمة: تهيئة متصفح السيلينيوم
+def setup_selenium_driver():
+    """تهيئة متصفح Chrome للعمل بوضع Headless (بدون واجهة) بالريلوي."""
+    
+    # خيارات تشغيل الكروم (Headless mode)
+    chrome_options = Options()
+    chrome_options.add_argument("--headless") # تشغيل بدون واجهة (مهم بالريلوي)
+    chrome_options.add_argument("--no-sandbox") # مهم للسيرفرات (الريلوي)
+    chrome_options.add_argument("--disable-dev-shm-usage") # مهم للسيرفرات
+
+    # ننصب الكروم درايفر ونشغله مباشرة
+    service = Service(ChromeDriverManager().install())
+    
+    # ننشئ المتصفح
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    
+    return driver
+
 
 # دالة (Function) البداية: /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -29,20 +56,40 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         reply_markup=reply_markup
     )
 
-# دالة استقبال ضغطات الأزرار (CallbackQueryHandler)
+# دالة استقبال ضغطات الأزرار
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer() 
 
     data = query.data
     
-    # هنا راح نبدي نضيف المنطق البرمجي لكل زر:
+    # *** المنطق الجديد: تجربة السيلينيوم عند الضغط على زر إضافة طلب ***
     if data == 'add_order':
-        await query.edit_message_text(text="تمام! لإضافة طلب جديد، نحتاج ندخل للموقع... (قريباً راح نبرمج الدخول للموقع)")
+        await query.edit_message_text(text="جاري محاولة الدخول للموقع... إنتظر رجاءً.")
+        
+        try:
+            # تشغيل المتصفح الآلي (Selenium)
+            driver = setup_selenium_driver()
+            
+            # مجرد تجربة بسيطة (مثلاً فتح جوجل)
+            driver.get("https://www.google.com")
+            
+            # التأكد من نجاح الدخول
+            title = driver.title
+            
+            # سد المتصفح
+            driver.quit()
+            
+            await query.edit_message_text(f"✅ تم تشغيل المتصفح بنجاح! عنوان الصفحة اللي دخلتها: {title}")
+
+        except Exception as e:
+            await query.edit_message_text(f"❌ صار خطأ بمحاولة تشغيل المتصفح: {e}")
+
+    # باقي الأزرار
     elif data == 'search_by_id':
-        await query.edit_message_text(text="تمام! للبحث برقم الطلب، يرجى إرسال الرقم الآن. (قريباً راح نبرمج عملية البحث)")
+        await query.edit_message_text(text="تمام! للبحث برقم الطلب، يرجى إرسال الرقم الآن.")
     elif data == 'search_by_name':
-        await query.edit_message_text(text="تمام! للبحث باسم الزبون، يرجى إرسال الاسم الآن. (قريباً راح نبرمج عملية البحث)")
+        await query.edit_message_text(text="تمام! للبحث باسم الزبون، يرجى إرسال الاسم الآن.")
 
 
 def main() -> None:
@@ -54,7 +101,7 @@ def main() -> None:
     application.add_handler(CallbackQueryHandler(button))
 
     # تشغيل البوت
-    print("البوت بدأ العمل محلياً. دوس Ctrl+C حتى توقفه.")
+    print("البوت بدأ العمل.")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
