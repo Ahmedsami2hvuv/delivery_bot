@@ -1,62 +1,49 @@
-# الملف: bot.py (تم التعديل للربط بـ web_actions.py)
+# الملف: bot.py (التعديل الأخير)
 
-import telegram
+import os
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-# 🔴 استيراد الدوال من الملف الجديد
-from web_actions import login_and_get_title 
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
+# 🔴 إستيراد دالة perform_add_order الجديدة 
+from web_actions import perform_add_order
 
 
 # ************************************************
-# 🔴 التوكن اللي خليته هو:
+# 🔴 قراءة البيانات من متغيرات الريلوي (أمان)
 # ************************************************
-TOKEN = "8215940523:AAEVr2jEg8Uxh4zJAFq4kFzKw1-kjKvByUg" 
+# ... (TOKEN و USER_NAME و PASS_WORD تبقى كما هي)
+TOKEN = os.environ.get("TELEGRAM_TOKEN") 
+USER_NAME = os.environ.get("WEB_USERNAME") 
+PASS_WORD = os.environ.get("WEB_PASSWORD") 
+DELIVERY_URL = "https://d.ksebstor.site/client/8757c7dd6c4df11bbb435093" 
 
-# اليوزر نيم والباسوورد والموقع الهدف (راح نخليهم ثابتين للتجربة)
-# 🔴 يرجى تغييرها بمعلوماتك الحقيقية للموقع الهدف
-USER_NAME = "ابو_الاكبر_يوزر" 
-PASS_WORD = "ابو_الاكبر_باسورد" 
-LOGIN_PAGE = "https://www.google.com" # 🔴 غير هذا العنوان بعنوان الموقع اللي بيه حسابك
 
-# دالة (Function) البداية: /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # الأزرار (نفس الأزرار السابقة)
-    keyboard = [
-        [
-            InlineKeyboardButton("➕ إضافة طلب جديد", callback_data='add_order'),
-            InlineKeyboardButton("🔎 بحث برقم الطلب", callback_data='search_by_id'),
-        ],
-        [
-            InlineKeyboardButton("👤 بحث باسم الزبون", callback_data='search_by_name'),
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+# ... (دالة start و دالة button تبقى كما هي) ...
 
-    await update.message.reply_text(
-        'أهلاً بك يا أبو الأكبر في بوت خدمة التوصيل الشامل.\nإختر العملية المطلوبة:',
-        reply_markup=reply_markup
-    )
-
-# دالة استقبال ضغطات الأزرار
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer() 
-
-    data = query.data
-    
-    if data == 'add_order':
-        await query.edit_message_text(text="جاري محاولة الدخول للموقع... إنتظر رجاءً.")
+# 🔴 دالة معالجة الرسائل النصية الجديدة (تم التعديل)
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if context.user_data.get('state') == 'AWAITING_ORDER_DETAILS':
         
-        # 🔴 هنا نستدعي الدالة من ملف web_actions.py
-        result_message = login_and_get_title(USER_NAME, PASS_WORD, LOGIN_PAGE)
-        
-        await query.edit_message_text(result_message)
+        context.user_data['state'] = 'READY' 
 
-    # باقي الأزرار (ما تتغير)
-    elif data == 'search_by_id':
-        await query.edit_message_text(text="تمام! للبحث برقم الطلب، يرجى إرسال الرقم الآن.")
-    elif data == 'search_by_name':
-        await query.edit_message_text(text="تمام! للبحث باسم الزبون، يرجى إرسال الاسم الآن.")
+        order_details = update.message.text.split('\n')
+        
+        if len(order_details) < 5:
+            await update.message.reply_text(
+                "❌ فشل: يجب أن تكون الرسالة بخمسة سطور (النوع، السعر، المنطقة، الرقم، الوقت). يرجى المحاولة مرة أخرى أو إرسال /start."
+            )
+            return
+
+        await update.message.reply_text("⏳ جاري محاولة إضافة الطلب في الموقع... إنتظر رجاءً.")
+
+        # 🔴 1. استدعاء دالة السيلينيوم الحقيقية
+        # هاي الدالة راح ترجع رسالة النجاح أو الخطأ
+        result_message = perform_add_order(order_details, DELIVERY_URL) 
+        
+        # 🔴 2. إرسال نتيجة العملية للمستخدم
+        await update.message.reply_text(result_message)
+
+    else:
+        await update.message.reply_text("إختر أمر من الأزرار أو إكتب /start.")
 
 
 def main() -> None:
