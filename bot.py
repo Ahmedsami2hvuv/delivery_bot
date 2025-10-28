@@ -3,16 +3,18 @@
 import os 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters 
+
+# استيراد دالة perform_add_order
 from web_actions import perform_add_order
 
 
 # ************************************************
-# قراءة البيانات من متغيرات بيئة التشغيل في Railway
+# قراءة البيانات من متغيرات بيئة التشغيل في Render
 # ************************************************
 TOKEN = os.environ.get("TELEGRAM_TOKEN") 
 USER_NAME = os.environ.get("WEB_USERNAME") 
 PASS_WORD = os.environ.get("WEB_PASSWORD") 
-# 🔴 الرابط الجديد لرفع الطلبات
+# الرابط الجديد اللي انطيته
 DELIVERY_URL = os.environ.get("URL") 
 
 
