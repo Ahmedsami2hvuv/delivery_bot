@@ -1,4 +1,4 @@
-# الملف: render.yaml
+# الملف: render.yaml (التعديل لضمان تنصيب Chrome)
 
 services:
 - type: web
@@ -7,6 +7,8 @@ services:
   buildCommand: pip install -r requirements.txt
   startCommand: python bot.py
   plan: free
+  # 🔴 إضافة Buildpacks هنا
+  autoDeploy: true
   envVars:
     - key: TELEGRAM_TOKEN
       sync: false
@@ -16,3 +18,6 @@ services:
       sync: false
     - key: URL
       sync: false
+  # 🔴 أمر تثبيت المتصفحات هنا (Google Chrome)
+  buildpacks:
+    - url: https://github.com/heroku/heroku-buildpack-google-chrome
