@@ -1,11 +1,11 @@
-# الملف: web_actions.py
+# الملف: web_actions.py (الإصدار النهائي والمدقق لـ CSRF)
 
 import requests
 from bs4 import BeautifulSoup
 import json
 import time
 
-# قاموس لتحديد ID المنطقة بناءً على الاسم (مطلوب لـ Select Box)
+# قاموس لتحديد ID المنطقة بناءً على الاسم (باقي كما هو)
 AREA_IDS = {
     "تقاطع جلاب": "1", "الاسمدة": "2", "محيلة السوق": "3", "جسر محيلة": "4", 
     "جيكور": "5", "ابو مغيرة": "6", "محيلة طريق المحطة": "7", "محيلة شارع الاندلس": "8", 
@@ -15,13 +15,13 @@ AREA_IDS = {
 def perform_add_order(order_details: list, delivery_url: str):
     
     # البيانات الأساسية
-    item_type = order_details[0].strip()    # نوع الطلبية
-    price = order_details[1].strip()        # السعر
-    area_name = order_details[2].strip()    # المنطقة
-    phone_number = order_details[3].strip() # الرقم
-    time_text = order_details[4].strip()    # الوقت
-    city_id = AREA_IDS.get(area_name, "") # ID المنطقة
-    
+    item_type = order_details[0].strip()    
+    price = order_details[1].strip()        
+    area_name = order_details[2].strip()    
+    phone_number = order_details[3].strip() 
+    time_text = order_details[4].strip()    
+    city_id = AREA_IDS.get(area_name, "") 
+
     session = requests.Session()
     
     try:
@@ -30,7 +30,6 @@ def perform_add_order(order_details: list, delivery_url: str):
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36', 
         }
         
-        # 🔴 الحصول على الصفحة لإنشاء الجلسة واستخراج التوكن
         response_get = session.get(delivery_url, headers=headers)
         soup = BeautifulSoup(response_get.text, 'html.parser')
         
@@ -38,47 +37,58 @@ def perform_add_order(order_details: list, delivery_url: str):
         csrf_token_tag = soup.find('input', {'type': 'hidden'})
         
         if not csrf_token_tag:
+             # في حال عدم وجود حقل مخفي، نخمن الاسم "_token"
              csrf_token_value = ""
+             csrf_token_name = "_token" 
         else:
              csrf_token_value = csrf_token_tag.get('value', "")
+             # ⬅️ الحصول على الاسم الحقيقي للحقل المخفي (مثل: 'csrf-token' أو '_token')
+             csrf_token_name = csrf_token_tag.get('name', "_token") 
         
-        # 2. المرحلة الثانية: إرسال الطلب (POST Request) مع الكود السري
+        # 2. المرحلة الثانية: إرسال الطلب (POST Request)
         
         # البيانات اللي لازم يرسلها البوت للموقع:
         payload = {
-            # 🔴 الكود السري للامان (نرسله باسم _token)
-            '_token': csrf_token_value,    
+            # 🔴 استخدام اسم الحقل المستخرج (أو _token كتخمين)
+            csrf_token_name: csrf_token_value,    
             
-            # الحقول الأساسية (الأسماء الحقيقية)
+            # الحقول الأساسية
             'order_type': item_type,       
             'price': price,                
-            'city_id': city_id,            # 🔴 نرسل ID المنطقة فقط (الحل النهائي)
+            'city_id': city_id,            
             'phone': phone_number,         
             'date_note': time_text,        
             
-            # الحقول الثانوية (التي يجب إرسالها بقيمة)
-            'is_paid': "0",                 # كل شيء واصل؟ (لا)
-            'phone2': "",                   # رقم هاتف ثاني
-            'pic': "",                      # صورة الطلبية
-            'note': "",                     # ملاحظات
+            # الحقول الثانوية
+            'is_paid': "0",                 
+            'phone2': "",                   
+            'pic': "",                      
+            'note': "",                     
             
             # زر الإضافة
             'addnew': 'اضافة الطلبية'      
         }
         
-        # إرسال البيانات (بدون headers إضافية غير User-Agent)
+        # إرسال البيانات
         response_post = session.post(delivery_url, data=payload, headers=headers)
         
         # فحص الرد:
         if response_post.status_code == 200:
-            if "location.replace" in response_post.text or "تمت العملية بنجاح" in response_post.text:
-                return "✅ تم إضافة الطلب بنجاح (الكود والبيانات صحيحة)."
+            # 🔴 التحقق الأكيد من النجاح: إذا تم التحويل (Redirect) إلى صفحة أخرى بعد الإرسال
+            if response_post.url != delivery_url:
+                return "✅ تم إضافة الطلب بنجاح (تم رصد تحويل في الرابط)."
+
+            # إذا لم يتم التحويل، هذا يعني فشل بالرغم من الرد 200
+            if "CSRF token mismatch" in response_post.text:
+                return f"❌ فشل: CSRF Token غير مطابق. يرجى مراجعة المبرمج."
+            
+            # 🔴 إذا كان الرد 200 ولا يوجد تحويل، ووجد رسالة نجاح، فهذا فشل صامت
+            elif "location.replace" in response_post.text or "تمت العملية بنجاح" in response_post.text:
+                return f"❌ فشل صامت: الموقع رد برسالة نجاح ({response_post.status_code}) لكن لم يتم إنشاء الطلب. السبب غالباً: حقل بيانات مفقود."
+            
             else:
-                # إذا فشل الـ Token، الموقع يرد برسالة فشل تحتوي على كود خطأ (مثل 419)
-                if "CSRF token mismatch" in response_post.text:
-                     return f"❌ فشل: CSRF Token غير مطابق. يرجى مراجعة المبرمج."
-                else:
-                    return f"❌ فشل: تم رفض البيانات من قبل الموقع. يرجى مراجعة بياناتك."
+                return f"❌ فشل الإرسال: الرد 200 لكن لا توجد إشارة نجاح أو تحويل. هذا يعني فشل في التحقق من البيانات."
+
         else:
             return f"❌ فشل الإرسال. حالة الرد: {response_post.status_code}. "
 
