@@ -3,7 +3,7 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager # 🔴 رجعنا نستخدمها
+from webdriver_manager.chrome import ChromeDriverManager 
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -11,7 +11,7 @@ from selenium.webdriver.common.keys import Keys
 import time
 
 # ************************************************
-# 🔴 دالة تهيئة المتصفح (النسخة الآمنة لـ Render)
+# 🔴 دالة تهيئة المتصفح (النسخة اللي تستخدم webdriver-manager)
 # ************************************************
 def setup_selenium_driver():
     """تهيئة متصفح Chrome للعمل بوضع Headless (بدون واجهة)."""
@@ -22,7 +22,7 @@ def setup_selenium_driver():
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--lang=ar") 
     
-    # 🔴 نعتمد على webdriver-manager اللي راح يشتغل بالـ Render
+    # نعتمد على webdriver-manager في تنصيب الـ ChromeDriver
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     
