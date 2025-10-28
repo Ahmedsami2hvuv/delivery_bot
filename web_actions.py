@@ -3,7 +3,7 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-# تم حذف استيراد webdriver_manager
+from webdriver_manager.chrome import ChromeDriverManager # 🔴 رجعنا نستخدمها
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -11,13 +11,10 @@ from selenium.webdriver.common.keys import Keys
 import time
 
 # ************************************************
-# 🔴 دالة تهيئة المتصفح باستخدام المسار اليدوي 
+# 🔴 دالة تهيئة المتصفح (النسخة الآمنة لـ Render)
 # ************************************************
 def setup_selenium_driver():
-    """تهيئة متصفح Chrome للعمل بوضع Headless (بدون واجهة) على الريلوي باستخدام مسار يدوي."""
-    
-    # 🔴 المسار اللي ينصّب بيه أمر البناء الطويل الـ ChromeDriver
-    CHROME_DRIVER_PATH = "/usr/local/bin/chromedriver" 
+    """تهيئة متصفح Chrome للعمل بوضع Headless (بدون واجهة)."""
     
     chrome_options = Options()
     chrome_options.add_argument("--headless")
@@ -25,11 +22,11 @@ def setup_selenium_driver():
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--lang=ar") 
     
-    # 🔴 استخدام المسار اليدوي
-    service = Service(executable_path=CHROME_DRIVER_PATH)
+    # 🔴 نعتمد على webdriver-manager اللي راح يشتغل بالـ Render
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     
-    driver.implicitly_wait(10) # انتظار ضمني
+    driver.implicitly_wait(10) 
     
     return driver
 
@@ -70,7 +67,6 @@ def perform_add_order(order_details: list, delivery_url: str):
         area_search_input.send_keys(area_name) 
         
         # ب. الانتظار لظهور خيار المنطقة والنقر عليه
-        # (نبحث عن عنصر بالقائمة يحمل النص بالكامل)
         area_option = wait.until(EC.element_to_be_clickable((By.XPATH, f"//li[text()='{area_name}']")))
         area_option.click() 
         
@@ -95,13 +91,8 @@ def perform_add_order(order_details: list, delivery_url: str):
         return success_message
 
     except Exception as e:
-        # إذا صار خطأ، نرجع رسالة الخطأ
         return f"❌ صار خطأ أثناء إدخال الطلب (XPath/انتظار): {e}"
         
     finally:
         if driver:
-            driver.quit() # إغلاق المتصفح
-
-# دالة dummy للمحافظة على بنية الكود (سنحتاجها للزر الثاني)
-def perform_order_action():
-    return "هذه الدالة موجودة فقط للحفاظ على الربط بـ bot.py. سنستخدم دالة perform_add_order."
+            driver.quit()
