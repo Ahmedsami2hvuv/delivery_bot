@@ -1,4 +1,4 @@
-# الملف: web_actions.py (الإصدار النهائي مع CSRF Token)
+# الملف: web_actions.py (الإصدار النهائي لحل CSRF)
 
 import requests
 from bs4 import BeautifulSoup
@@ -7,23 +7,19 @@ import time
 
 # قاموس لتحديد ID المنطقة بناءً على الاسم (مطلوب لـ Select Box)
 AREA_IDS = {
+    # ... (باقي المناطق) ...
     "تقاطع جلاب": "1", "الاسمدة": "2", "محيلة السوق": "3", "جسر محيلة": "4", 
     "جيكور": "5", "ابو مغيرة": "6", "محيلة طريق المحطة": "7", "محيلة شارع الاندلس": "8", 
     "محيلة صفحة الشط": "9", "جيكور حزبة 1": "10", "جيكور حزبة .2": "11", "باب ميدان": "12", 
-    # 🔴 يرجى إضافة باقي المناطق لاحقاً إذا احتجتها
 }
 
-# ************************************************
-# 🔴 دالة تنفيذ عملية إضافة الطلب (باستخدام Requests و CSRF)
-# ************************************************
 def perform_add_order(order_details: list, delivery_url: str):
     
-    # البيانات الأساسية
-    item_type = order_details[0].strip()    # نوع الطلبية
-    price = order_details[1].strip()        # السعر
-    area_name = order_details[2].strip()    # المنطقة
-    phone_number = order_details[3].strip() # الرقم
-    time_text = order_details[4].strip()    # الوقت
+    item_type = order_details[0].strip()    
+    price = order_details[1].strip()        
+    area_name = order_details[2].strip()    
+    phone_number = order_details[3].strip() 
+    time_text = order_details[4].strip()    
     city_id = AREA_IDS.get(area_name, "") 
 
     session = requests.Session()
@@ -31,28 +27,31 @@ def perform_add_order(order_details: list, delivery_url: str):
     try:
         # 1. المرحلة الأولى: الحصول على الصفحة و CSRF Token
         headers = {
-            'User-Agent': 'Mozilla/5.0', # 🔴 استخدام User-Agent يحاكي متصفح حقيقي
+            'User-Agent': 'Mozilla/5.0', 
         }
         
-        # 🔴 نحصل على الصفحة أولاً للحصول على الكود السري (Token)
         response_get = session.get(delivery_url, headers=headers)
         soup = BeautifulSoup(response_get.text, 'html.parser')
         
-        # 🔴 البحث عن حقل CSRF Token (عادةً يكون input type="hidden")
-        # هذا التخمين شائع جداً لمواقع الـ PHP والـ Laravel
-        csrf_token_tag = soup.find('input', {'name': '_token'}) 
+        # 🔴 البحث الأكيد عن CSRF Token ضمن الـ FORM
+        # البحث عن أي input مخفي داخل الـ form اللي method=POST (هذا هو الأصح)
+        csrf_token_tag = soup.find('form', method='POST').find('input', {'type': 'hidden'})
         
         if not csrf_token_tag:
-             # إذا لم نجد التوكن، نعتبره غير موجود ونستمر
-             csrf_token_value = ""
+             # إذا لم نجد الـ token، نفترض أنه قد يكون ضمن name=_token (التخمين القديم)
+             csrf_token_tag = soup.find('input', {'name': '_token'}) 
+             if not csrf_token_tag:
+                 csrf_token_value = ""
+             else:
+                 csrf_token_value = csrf_token_tag.get('value', "")
         else:
+            # 🔴 إذا وجدنا الـ input المخفي، نأخذ القيمة مالته
              csrf_token_value = csrf_token_tag.get('value', "")
-        
+
         # 2. المرحلة الثانية: إرسال الطلب (POST Request) مع الكود السري
         
-        # 🔴 البيانات اللي لازم يرسلها البوت للموقع:
         payload = {
-            # 🔴 الكود السري للامان
+            # 🔴 الكود السري للامان (نرسله باسم _token)
             '_token': csrf_token_value,    
             
             # الحقول الأساسية
@@ -75,7 +74,7 @@ def perform_add_order(order_details: list, delivery_url: str):
         # إرسال البيانات
         post_headers = {
             'User-Agent': 'Mozilla/5.0',
-            'Referer': delivery_url, # 🔴 مهم: نحدد صفحة المرجع لأمان الموقع
+            'Referer': delivery_url,
             'Content-Type': 'application/x-www-form-urlencoded'
         }
         
@@ -83,10 +82,16 @@ def perform_add_order(order_details: list, delivery_url: str):
         
         # فحص الرد:
         if response_post.status_code == 200:
-            if "location.replace" in response_post.text or response_post.url != delivery_url:
+            if "location.replace" in response_post.text:
                 return "✅ تم إضافة الطلب بنجاح (الكود والبيانات صحيحة)."
             else:
-                return f"❌ فشل: تم رفض البيانات أو CSRF Token غير صحيح. \n محتوى الرد: {response_post.text[:100]}..."
+                # 🔴 إذا الـ Token فشل، الموقع يرد برسالة فشل تحتوي على كود خطأ (مثل 419)
+                if "CSRF token mismatch" in response_post.text:
+                     return f"❌ فشل: CSRF Token غير مطابق. يرجى مراجعة المبرمج."
+                elif response_post.url != delivery_url:
+                     return "✅ تم إضافة الطلب بنجاح (الكود والبيانات صحيحة)."
+                else:
+                    return f"❌ فشل: تم رفض البيانات من قبل الموقع. يرجى مراجعة بياناتك."
         else:
             return f"❌ فشل الإرسال. حالة الرد: {response_post.status_code}. "
 
