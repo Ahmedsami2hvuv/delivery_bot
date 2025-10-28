@@ -1,99 +1,76 @@
-# الملف: web_actions.py
+# الملف: web_actions.py (النسخة النهائية لـ Requests)
 
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.keys import Keys 
+import requests
+from bs4 import BeautifulSoup
+import json
 import time
 
 # ************************************************
-# 🔴 دالة تهيئة المتصفح (النسخة الآمنة لـ Render)
-# ************************************************
-def setup_selenium_driver():
-    """تهيئة متصفح Chrome للعمل بوضع Headless (بدون واجهة)."""
-    
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu") # نتركها ما دام ما تأثر بالـ Render
-    chrome_options.add_argument("--lang=ar") 
-    
-    # نعتمد على webdriver-manager اللي راح يشتغل بالـ Render
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-    
-    driver.implicitly_wait(10) 
-    
-    return driver
-
-# ************************************************
-# 🔴 دالة تنفيذ عملية إضافة الطلب (باستخدام XPATH الحقيقي)
+# 🔴 دالة تنفيذ عملية إضافة الطلب (باستخدام Requests)
 # ************************************************
 def perform_add_order(order_details: list, delivery_url: str):
-    driver = None
+    
+    # تفاصيل الطلب اللي تجينا من التليجرام:
+    item_type = order_details[0].strip()    # النوع (مسواك)
+    price = order_details[1].strip()        # السعر (12)
+    area_name = order_details[2].strip()    # المنطقة (جيكور)
+    phone_number = order_details[3].strip() # الرقم (077...)
+    time_text = order_details[4].strip()    # الوقت (هسه)
+    
+    # *******************************************************************
+    # 1. المرحلة الأولى: الحصول على كود المنطقة (ضروري للتطبيق)
+    # *******************************************************************
     try:
-        # 1. تهيئة وتشغيل المتصفح
-        driver = setup_selenium_driver()
-        driver.get(delivery_url)
+        # 🔴 لازم نسوي طلب بحث خاص حتى نعرف الكود (ID) مال المنطقة
+        # حالياً، ما نكدر نعرف رابط البحث، لذلك راح نفترض إن الموقع يحتاج اسم المنطقة فقط.
+        # إذا فشل، نحتاج رابط API الموقع. حالياً: نفترض إنه ما يحتاج API.
         
-        # الانتظار لحد ما الحقول تظهر (50 ثانية كحد أقصى)
-        wait = WebDriverWait(driver, 50) 
+        # بما إن الروابط ثابتة، الموقع يطلب ID خاص بالمنطقة
+        # لكن للتجربة المبدئية، راح نستخدم اسم المنطقة مباشرة في حقل Area_Name
         
-        # تفاصيل الطلب اللي تجينا من التليجرام:
-        item_type = order_details[0].strip()    # النوع (مسواك)
-        price = order_details[1].strip()        # السعر (12)
-        area_name = order_details[2].strip()    # المنطقة (جيكور)
-        phone_number = order_details[3].strip() # الرقم (077...)
-        time_text = order_details[4].strip()    # الوقت (هسه)
-        
-        # 2. ملء حقول النصوص (باستخدام XPATH الدقيق من الصور)
-        
-        # حقل نوع الطلبية (Type of Order) 
-        type_input = wait.until(EC.presence_of_element_located((By.XPATH, "//label[text()='نوع الطلبية *']/following-sibling::input")))
-        type_input.send_keys(item_type)
-        
-        # حقل سعر الطلبية بدون التوصيل (Price) 
-        price_input = wait.until(EC.presence_of_element_located((By.XPATH, "//label[text()='سعر الطلبية بدون التوصيل']/following-sibling::input")))
-        price_input.send_keys(price)
-
-        # 3. التعامل مع خانة المنطقة
-        
-        # أ. إيجاد حقل البحث عن المنطقة (المكتوب بي 'اختر للبحث عن المنطقة')
-        area_search_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@placeholder='اختر للبحث عن المنطقة']")))
-        area_search_input.send_keys(area_name) 
-        
-        # ب. الانتظار لظهور خيار المنطقة والنقر عليه
-        area_option = wait.until(EC.element_to_be_clickable((By.XPATH, f"//li[text()='{area_name}']")))
-        area_option.click() 
-        
-        # 4. ملء باقي الحقول
-        
-        # حقل رقم الهاتف
-        phone_input = wait.until(EC.presence_of_element_located((By.XPATH, "//label[text()='رقم الهاتف *']/following-sibling::input")))
-        phone_input.send_keys(phone_number)
-        
-        # حقل وقت الطلبية
-        time_input = wait.until(EC.presence_of_element_located((By.XPATH, "//label[text()='وقت الطلبية *']/following-sibling::input")))
-        time_input.send_keys(time_text)
-        
-        # 5. النقر على زر الإضافة
-        
-        submit_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[text()='إضافة الطلبية']")))
-        submit_button.click()
-        
-        # 6. رسالة نجاح مبدئية
-        success_message = "✅ تم محاولة إضافة الطلب بنجاح. يرجى مراجعة الموقع للتأكد." 
-        
-        return success_message
+        # 🔴 نحتاج نحدد ID الحقيقي للمنطقة. بما إننا ما عندنا API، راح نفترض ID افتراضي مؤقتاً
+        # (اذا فشل الكود، سنحتاج منك تفاصيل أكثر عن المنطقة)
+        area_id = area_name 
 
     except Exception as e:
-        return f"❌ صار خطأ أثناء إدخال الطلب (XPath/انتظار): {e}"
+         return f"❌ فشل: لم يتمكن من تحديد كود المنطقة. (الخطوة رقم 102)"
+
+    # *******************************************************************
+    # 2. المرحلة الثانية: إرسال الطلب (POST Request)
+    # *******************************************************************
+    
+    # 🔴 هذا هو الرابط اللي راح نرسل عليه البيانات (غالباً هو نفسه رابط الصفحة)
+    # 🔴 غالباً الطلب يكون على رابط آخر، لكن نفترض إنه رابط الصفحة مؤقتاً
+    post_url = delivery_url 
+    
+    # 🔴 البيانات اللي لازم يرسلها البوت للموقع:
+    # (هاي الأسماء هي تخمينية للحقول، لازم تتغير للأسماء الحقيقية اللي يستخدمها الموقع)
+    payload = {
+        'order_type': item_type,       # نوع الطلبية
+        'price_delivery_less': price,  # السعر بدون توصيل
+        'area_search': area_id,        # اسم/كود المنطقة
+        'customer_phone': phone_number, # رقم الزبون
+        'order_time': time_text,       # وقت الطلب
+        'submit_button': 'إضافة الطلبية' # زر التأكيد (اسم الزر الحقيقي)
+        # ممكن نحتاج نضيف حقول مخفية (csrf tokens) إذا الموقع يتطلب أمان
+    }
+    
+    # إرسال البيانات
+    try:
+        response = requests.post(post_url, data=payload)
         
-    finally:
-        if driver:
-            driver.quit()
+        # فحص الرد:
+        if response.status_code == 200:
+            # 🔴 البحث عن رسالة النجاح في محتوى الصفحة اللي رجعت
+            soup = BeautifulSoup(response.text, 'html.parser')
+            success_div = soup.find('div', class_='success-message') # تخميني
+            
+            if success_div or "سجل الطلبات" in response.text:
+                return "✅ تم إضافة الطلب بنجاح. (تم الإرسال عبر requests)"
+            else:
+                return f"⚠️ تم إرسال الطلب، لكن لم يتم التأكد من نجاح الإضافة. حالة الرد: {response.status_code}. \nمحتوى الرد: {response.text[:100]}..."
+        else:
+            return f"❌ فشل الإرسال. حالة الرد: {response.status_code}. "
+
+    except Exception as e:
+        return f"❌ صار خطأ أثناء إرسال الطلب: {e}"
