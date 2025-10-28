@@ -11,7 +11,7 @@ from selenium.webdriver.common.keys import Keys
 import time
 
 # ************************************************
-# 🔴 دالة تهيئة المتصفح (النسخة اللي تستخدم webdriver-manager)
+# 🔴 دالة تهيئة المتصفح (مع إضافة --disable-gpu)
 # ************************************************
 def setup_selenium_driver():
     """تهيئة متصفح Chrome للعمل بوضع Headless (بدون واجهة)."""
@@ -20,6 +20,8 @@ def setup_selenium_driver():
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
+    # 🔴 التعديل الأخير لحل مشكلة Status code 127
+    chrome_options.add_argument("--disable-gpu") 
     chrome_options.add_argument("--lang=ar") 
     
     # نعتمد على webdriver-manager في تنصيب الـ ChromeDriver
