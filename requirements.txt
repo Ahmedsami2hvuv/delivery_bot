@@ -1,6 +1,3 @@
 python-telegram-bot
 selenium
 webdriver-manager
-
-# 🔴 المتطلبات الإضافية لمتصفح Chrome على Linux (مهمة للريلوي)
-google-chrome-stable
