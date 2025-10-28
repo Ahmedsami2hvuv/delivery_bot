@@ -1,0 +1,18 @@
+# الملف: render.yaml
+
+services:
+- type: web
+  name: delivery-bot-service
+  env: python
+  buildCommand: pip install -r requirements.txt
+  startCommand: python bot.py
+  plan: free
+  envVars:
+    - key: TELEGRAM_TOKEN
+      sync: false
+    - key: WEB_USERNAME
+      sync: false
+    - key: WEB_PASSWORD
+      sync: false
+    - key: URL
+      sync: false
