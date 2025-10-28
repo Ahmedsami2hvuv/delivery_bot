@@ -11,7 +11,7 @@ from selenium.webdriver.common.keys import Keys
 import time
 
 # ************************************************
-# 🔴 دالة تهيئة المتصفح (مع إضافة --disable-gpu)
+# 🔴 دالة تهيئة المتصفح (النسخة الآمنة لـ Render)
 # ************************************************
 def setup_selenium_driver():
     """تهيئة متصفح Chrome للعمل بوضع Headless (بدون واجهة)."""
@@ -20,11 +20,10 @@ def setup_selenium_driver():
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    # 🔴 التعديل الأخير لحل مشكلة Status code 127
-    chrome_options.add_argument("--disable-gpu") 
+    chrome_options.add_argument("--disable-gpu") # نتركها ما دام ما تأثر بالـ Render
     chrome_options.add_argument("--lang=ar") 
     
-    # نعتمد على webdriver-manager في تنصيب الـ ChromeDriver
+    # نعتمد على webdriver-manager اللي راح يشتغل بالـ Render
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     
