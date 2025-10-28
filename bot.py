@@ -1,19 +1,19 @@
-# الملف: bot.py (الكود الكامل والصحيح)
+# الملف: bot.py
 
 import os 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters 
-# إستيراد دالة perform_add_order
+
+# 🔴 إستيراد دالة perform_add_order
 from web_actions import perform_add_order
 
 
 # ************************************************
-# قراءة البيانات من متغيرات الريلوي (الآن صار يشتغل)
+# قراءة البيانات من متغيرات بيئة التشغيل في Render
 # ************************************************
 TOKEN = os.environ.get("TELEGRAM_TOKEN") 
 USER_NAME = os.environ.get("WEB_USERNAME") 
 PASS_WORD = os.environ.get("WEB_PASSWORD") 
-# الرابط: https://d.ksebstor.site/client/8757c7dd6c4df11bbb435093
 DELIVERY_URL = os.environ.get("URL") 
 
 
@@ -21,7 +21,6 @@ DELIVERY_URL = os.environ.get("URL")
 # 1. دالة (Function) البداية: /start
 # ************************************************
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # وضع حالة البوت: جاهز لاستقبال الأوامر
     context.user_data['state'] = 'READY' 
     keyboard = [
         [
@@ -49,7 +48,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     data = query.data
     
     if data == 'add_order':
-        # تغيير حالة البوت: الآن ينتظر رسالة الطلب
         context.user_data['state'] = 'AWAITING_ORDER_DETAILS' 
         await query.edit_message_text(
             "تم إختيار إضافة طلب جديد. يرجى إرسال تفاصيل الطلب على شكل سطور بالترتيب:\n"
@@ -72,13 +70,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # 3. دالة معالجة الرسائل النصية الجديدة
 # ************************************************
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # فحص حالة البوت: هل ينتظر تفاصيل طلب؟
     if context.user_data.get('state') == 'AWAITING_ORDER_DETAILS':
         
-        # 1. إرجاع حالة البوت للحالة الأساسية
         context.user_data['state'] = 'READY' 
-
-        # 2. تقسيم رسالة المستخدم (السطور)
         order_details = update.message.text.split('\n')
         
         if len(order_details) < 5:
@@ -89,14 +83,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
         await update.message.reply_text("⏳ جاري محاولة إضافة الطلب في الموقع... إنتظر رجاءً.")
 
-        # 3. استدعاء دالة السيلينيوم الحقيقية
+        # استدعاء دالة السيلينيوم الحقيقية
         result_message = perform_add_order(order_details, DELIVERY_URL) 
         
-        # 4. إرسال نتيجة العملية للمستخدم
+        # إرسال نتيجة العملية للمستخدم
         await update.message.reply_text(result_message)
 
     else:
-        # إذا البوت ما ينتظر شي، يرد بالبداية
         await update.message.reply_text("إختر أمر من الأزرار أو إكتب /start.")
 
 
@@ -104,16 +97,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # 4. دالة التشغيل الرئيسية (Main)
 # ************************************************
 def main() -> None:
-    # التأكد من وجود التوكن
     if not TOKEN:
-        print("❌ خطأ: التوكن غير موجود. يرجى إضافته كمتغير بيئة (TELEGRAM_TOKEN) في الريلوي.")
+        print("❌ خطأ: التوكن غير موجود. يرجى إضافته كمتغير بيئة (TELEGRAM_TOKEN) في Render.")
         return 
         
-    # تهيئة وتشغيل البوت
     application = Application.builder().token(TOKEN).build()
 
-    # تسجيل الأوامر (Handlers)
-    application.add_handler(CommandHandler("start", start)) # الآن 'start' معرفة أعلاه
+    application.add_handler(CommandHandler("start", start)) 
     application.add_handler(CallbackQueryHandler(button))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
