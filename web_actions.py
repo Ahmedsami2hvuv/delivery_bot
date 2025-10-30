@@ -1,14 +1,15 @@
-# الملف: web_actions.py (إلغاء تسجيل الدخول والتركيز على العميل)
+# الملف: web_actions.py (الإصدار النهائي مع الأسماء الحقيقية للدخول)
 
 import requests
 from bs4 import BeautifulSoup
 import time
 import os
 
-# 🔴 لم نعد نحتاج بيانات تسجيل الدخول
-# LOGIN_URL = os.environ.get("LOGIN_URL", "https://d.ksebstor.site/login")
-# WEB_USERNAME = os.environ.get("WEB_USERNAME")
-# WEB_PASSWORD = os.environ.get("WEB_PASSWORD")
+# 🔴 قراءة بيانات الدخول والرابط من متغيرات البيئة
+LOGIN_URL = os.environ.get("LOGIN_URL", "https://d.ksebstor.site/login")
+WEB_USERNAME = os.environ.get("WEB_USERNAME")
+WEB_PASSWORD = os.environ.get("WEB_PASSWORD")
+DELIVERY_URL = os.environ.get("URL") # رابط العميل
 
 # قاموس لتحديد ID المنطقة بناءً على الاسم 
 AREA_IDS = {
@@ -19,9 +20,41 @@ AREA_IDS = {
 
 
 # ************************************************
-# 🔴 دالة تنفيذ عملية إضافة الطلب (مع محاكاة العميل فقط)
+# 1. دالة تسجيل الدخول والحصول على جلسة عمل قوية
 # ************************************************
-# دالة تسجيل الدخول محذوفة!
+def login_user(session, username, password, login_url):
+    
+    # 1. الحصول على CSRF Token
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    response_get = session.get(login_url, headers=headers)
+    soup = BeautifulSoup(response_get.text, 'html.parser')
+    
+    # استخراج CSRF Token (عادةً يكون input type=hidden بدون اسم)
+    csrf_tag = soup.find('form', id='formAuthentication').find('input', {'type': 'hidden'})
+    csrf_token = csrf_tag.get('value', "") if csrf_tag else ""
+    csrf_name = csrf_tag.get('name', "_token") if csrf_tag else "_token"
+    
+    # 2. إرسال بيانات الدخول
+    login_payload = {
+        csrf_name: csrf_token,             
+        'username': username,              # ⬅️ الاسم الحقيقي المستخرج
+        'password': password,              # ⬅️ الاسم الحقيقي المستخرج
+        'btn_login': 'دخول'                # ⬅️ اسم الزر الحقيقي
+    }
+    
+    response_post = session.post(login_url, data=login_payload, headers=headers, allow_redirects=False)
+
+    # 3. فحص نجاح الدخول (نتوقع رد 302 ويحول للوحة القيادة)
+    if response_post.status_code == 302 and 'dashboard' in response_post.headers.get('Location', ''):
+        return True
+    else:
+        # إذا رجع 200 أو فشل التحويل، فالدخول فشل
+        return False
+
+
+# ************************************************
+# 2. دالة تنفيذ عملية إضافة الطلب (مع جلسة الإدارة)
+# ************************************************
 def perform_add_order(order_details: list, delivery_url: str):
     
     # البيانات الأساسية للطلب
@@ -35,27 +68,20 @@ def perform_add_order(order_details: list, delivery_url: str):
     session = requests.Session()
     
     try:
-        # 1. المرحلة الأولى: الحصول على الصفحة و CSRF Token
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36', 
-        }
-        
-        # 🔴 فتح رابط العميل مباشرة (بدون تسجيل دخول)
+        # 1. تسجيل الدخول أولاً (الحصول على الكوكيز القوية)
+        if not login_user(session, WEB_USERNAME, WEB_PASSWORD, LOGIN_URL):
+             return "❌ فشل الدخول: لم يتمكن البوت من تسجيل الدخول (يرجى مراجعة اليوزر والباسوورد)."
+
+        # 2. المرحلة الثانية: استخدام الجلسة القوية لإضافة الطلب
+        # (باقي الكود هو نفسه اللي يرسل طلب العميل لكن الآن بجلسة إدارة قوية)
+        headers = {'User-Agent': 'Mozilla/5.0'}
         response_get = session.get(delivery_url, headers=headers)
         soup = BeautifulSoup(response_get.text, 'html.parser')
         
-        # 2. استخراج CSRF Token من صفحة العميل
-        # البحث عن أي حقل إدخال مخفي (input type=hidden) في الصفحة
         csrf_token_tag = soup.find('input', {'type': 'hidden'})
+        csrf_token_value = csrf_token_tag.get('value', "") if csrf_token_tag else ""
+        csrf_token_name = csrf_token_tag.get('name', "_token") if csrf_token_tag else "_token" 
         
-        if not csrf_token_tag:
-             csrf_token_value = ""
-             csrf_token_name = "_token" 
-        else:
-             csrf_token_value = csrf_token_tag.get('value', "")
-             csrf_token_name = csrf_token_tag.get('name', "_token") 
-        
-        # 3. إرسال الطلب (POST Request)
         payload = {
             csrf_token_name: csrf_token_value,    
             'order_type': item_type,       
@@ -63,24 +89,19 @@ def perform_add_order(order_details: list, delivery_url: str):
             'city_id': city_id,            
             'phone': phone_number,         
             'date_note': time_text,        
-            
-            # الحقول الثانوية
-            'is_paid': "0", 'phone2': "", 'pic': "", 'note': "",                   
-            
-            # زر الإضافة
-            'addnew': 'اضافة الطلبية'      
+            'is_paid': "0", 'phone2': "", 'pic': "", 'note': "", 'addnew': 'اضافة الطلبية'      
         }
         
         # إرسال البيانات
-        response_post = session.post(delivery_url, data=payload, headers=headers)
+        response_post = session.post(delivery_url, data=payload, headers=headers, allow_redirects=False)
         
-        # 4. فحص الرد:
-        if response_post.status_code == 200:
-            if response_post.url != delivery_url and "client_order" in response_post.url:
-                return "✅ تم إضافة الطلب بنجاح (تم التحويل بعد الإرسال)."
-            
-            else:
-                return f"❌ فشل صامت: تم قبول الرد (200) لكن الطلب لم يُسجل. السبب غالباً: فشل CSRF أو بيانات مطلوبة."
+        # فحص الرد:
+        if response_post.status_code == 302:
+             # إذا كان الرد 302، هذا يعني أن الطلب تم تحويله (نجاح)
+             return "✅ تم إضافة الطلب بنجاح (تم التحقق من خلال جلسة الإدارة)."
+        
+        elif response_post.status_code == 200:
+             return "❌ فشل: تم قبول الرد (200) لكن الطلب لم يتم تسجيله. يرجى مراجعة المبرمج."
         else:
             return f"❌ فشل الإرسال. حالة الرد: {response_post.status_code}. "
 
