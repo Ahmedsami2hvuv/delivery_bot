@@ -1,4 +1,4 @@
-# الملف: web_actions.py
+# الملف: web_actions.py (الكود النهائي المصحح)
 
 import requests
 from bs4 import BeautifulSoup
@@ -16,7 +16,6 @@ AREA_IDS = {
     "تقاطع جلاب": "1", "الاسمدة": "2", "محيلة السوق": "3", "جسر محيلة": "4", 
     "جيكور": "5", "ابو مغيرة": "6", "محيلة طريق المحطة": "7", "محيلة شارع الاندلس": "8", 
     "محيلة صفحة الشط": "9", "جيكور حزبة 1": "10", "جيكور حزبة .2": "11", "باب ميدان": "12", 
-    # ... نكدر نضيف باقي المناطق حسب الحاجة
 }
 
 
@@ -30,19 +29,19 @@ def login_user(session, username, password, login_url):
     response_get = session.get(login_url, headers=headers)
     soup = BeautifulSoup(response_get.text, 'html.parser')
     
-    # 🔴 استخراج CSRF Token (البحث داخل الـ formAuthentication)
+    # استخراج CSRF Token (البحث داخل الـ formAuthentication)
     form_tag = soup.find('form', id='formAuthentication')
     csrf_tag = form_tag.find('input', {'type': 'hidden'}) if form_tag else None 
     
     csrf_token = csrf_tag.get('value', "") if csrf_tag else ""
     csrf_name = csrf_tag.get('name', "_token") if csrf_tag else "_token"
     
-    # 2. إرسال بيانات الدخول
+    # 2. إرسال بيانات الدخول (الأسماء الحقيقية المستخرجة)
     login_payload = {
         csrf_name: csrf_token,             
         'username': username,             # ⬅️ الاسم الحقيقي المستخرج
         'password': password,             # ⬅️ الاسم الحقيقي المستخرج
-        'btn_login': 'دخول'               # ⬅️ اسم الزر الحقيقي
+        'btn_login': 'دخول'               # ⬅️ اسم الزر الحقيقي المستخرج
     }
     
     # 3. محاولة الدخول
@@ -52,7 +51,7 @@ def login_user(session, username, password, login_url):
     if response_post.status_code == 302 and 'dashboard' in response_post.headers.get('Location', ''):
         return True
     else:
-        # إذا رجع 200 أو فشل التحويل (وهو فشل)
+        # إذا فشل الدخول (سواء رد 200 أو 302 غير صحيح)، فهذا فشل
         return False
         
 # ************************************************
@@ -75,4 +74,39 @@ def perform_add_order(order_details: list, delivery_url: str):
         if not login_user(session, WEB_USERNAME, WEB_PASSWORD, LOGIN_URL):
              return "❌ فشل الدخول: لم يتمكن البوت من تسجيل الدخول (يرجى مراجعة اليوزر والباسوورد)."
 
-        # 2. المرحلة الثانية: استخدام الجلسة القوية لإ        return f"❌ صار خطأ أثناء إرسال الطلب: {e}"
+        # 2. المرحلة الثانية: استخدام الجلسة القوية لإضافة الطلب
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response_get = session.get(delivery_url, headers=headers)
+        soup = BeautifulSoup(response_get.text, 'html.parser')
+        
+        csrf_token_tag = soup.find('input', {'type': 'hidden'})
+        csrf_token_value = csrf_token_tag.get('value', "") if csrf_token_tag else ""
+        csrf_token_name = csrf_token_tag.get('name', "_token") if csrf_token_tag else "_token" 
+        
+        payload = {
+            csrf_token_name: csrf_token_value,    
+            'order_type': item_type,       
+            'price': price,                
+            'city_id': city_id,            
+            'phone': phone_number,         
+            'date_note': time_text,        
+            'is_paid': "0", 'phone2': "", 'pic': "", 'note': "", 'addnew': 'اضافة الطلبية'      
+        }
+        
+        # إرسال البيانات
+        response_post = session.post(delivery_url, data=payload, headers=headers, allow_redirects=False)
+        
+        # 3. فحص الرد:
+        if response_post.status_code == 302:
+             if 'dashboard' in response_post.headers.get('Location', ''):
+                 return "✅ تم إضافة الطلب بنجاح (تم التحقق من خلال جلسة الإدارة)."
+             else:
+                 return f"❌ فشل: تم التحويل إلى رابط غير متوقع. \n حالة الرد: {response_post.status_code}. "
+        
+        elif response_post.status_code == 200:
+             return "❌ فشل صامت: تم قبول الرد (200) لكن الطلب لم يتم تسجيله. يرجى مراجعة المبرمج."
+        else:
+            return f"❌ فشل الإرسال. حالة الرد: {response_post.status_code}. "
+
+    except Exception as e:
+        return f"❌ صار خطأ أثناء إرسال الطلب: {e}"
